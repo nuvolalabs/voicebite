@@ -1,0 +1,103 @@
+{
+  "model": {
+    "provider": "openai",
+    "model": "gpt-4o",
+    "messages": [
+      {
+        "role": "system",
+        "content": "You are the friendly phone assistant for Hakka Legend (Hakka / Indo-Chinese restaurant, MARKHAM location, phone 905.294.5777). You handle two jobs only: (1) takeout orders and (2) table reservations. Be concise, warm, and confirm details back to the caller before finishing.\n\nRESTAURANT: Hakka Legend, Markham. Hours: Mon-Thu 11am-10pm, Fri-Sat 11am-11pm, Sun 12pm-10pm. Takeout is available; many dishes come in protein choices (chicken/beef/shrimp/vegetable) at one price — when a dish has options, OFFER them and let the caller pick, then record the choice as the item option. Soups come in small/medium/large (different prices) — confirm the size.\n\nORDER FLOW: greet -> ask what they'd like -> use get_menu if they want to hear options or to find an item id/category -> collect items + quantity + option (if any) -> create_order -> read back total -> ask if they want to pay by link now -> send_payment_link (SMS) -> confirm.\nRESERVATION FLOW: greet -> ask party size, date, time, name, phone -> create_reservation -> confirm.\n\nIf asked about hours/location, state the Markham hours above. Always confirm the caller's name and phone number. Never invent menu prices; use get_menu. If unsure, ask once, then default to taking a message."
+      }
+    ]
+  },
+  "voice": { "provider": "vapi", "voiceId": "Elliot" },
+  "transcriber": { "provider": "deepgram", "model": "nova-2" },
+  "firstMessage": "Thanks for calling! I can take your takeout order or book a table. What can I do for you today?",
+  "tools": [
+    {
+      "type": "http",
+      "function": {
+        "name": "get_menu",
+        "description": "Return the current menu, optionally filtered by category (mains, starters, desserts, drinks).",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "category": { "type": "string", "description": "Optional menu category." }
+          }
+        }
+      },
+      "url": "https://web-production-fd59f.up.railway.app/tools/get_menu",
+      "method": "POST",
+      "headers": { "Content-Type": "application/json" }
+    },
+    {
+      "type": "http",
+      "function": {
+        "name": "create_order",
+        "description": "Create a takeout order with customer name, phone, and line items. Returns order id and total.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "customer_name": { "type": "string" },
+            "phone": { "type": "string" },
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "item_id": { "type": "string" },
+                  "quantity": { "type": "integer" }
+                },
+                "required": ["item_id", "quantity"]
+              }
+            }
+          },
+          "required": ["customer_name", "phone", "items"]
+        }
+      },
+      "url": "https://web-production-fd59f.up.railway.app/tools/create_order",
+      "method": "POST",
+      "headers": { "Content-Type": "application/json" }
+    },
+    {
+      "type": "http",
+      "function": {
+        "name": "create_reservation",
+        "description": "Book a table. Needs name, phone, party size, date (YYYY-MM-DD), time (HH:MM).",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "customer_name": { "type": "string" },
+            "phone": { "type": "string" },
+            "party_size": { "type": "integer" },
+            "date": { "type": "string" },
+            "time": { "type": "string" }
+          },
+          "required": ["customer_name", "phone", "party_size", "date", "time"]
+        }
+      },
+      "url": "https://web-production-fd59f.up.railway.app/tools/create_reservation",
+      "method": "POST",
+      "headers": { "Content-Type": "application/json" }
+    },
+    {
+      "type": "http",
+      "function": {
+        "name": "send_payment_link",
+        "description": "Generate a Stripe payment link for an order amount and SMS it to the customer's phone. Call this after create_order.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "order_id": { "type": "string" },
+            "customer_name": { "type": "string" },
+            "phone": { "type": "string" },
+            "amount": { "type": "number" }
+          },
+          "required": ["customer_name", "phone", "amount"]
+        }
+      },
+      "url": "https://web-production-fd59f.up.railway.app/tools/send_payment_link",
+      "method": "POST",
+      "headers": { "Content-Type": "application/json" }
+    }
+  ]
+}
