@@ -34,6 +34,11 @@ def _verify_vapi(secret_header: str | None, raw_body: bytes) -> None:
         raise HTTPException(status_code=401, detail="Invalid Vapi secret")
 
 
+@app.get("/")
+def root():
+    return {"status": "ok", "service": "restaurant-voice-agent"}
+
+
 @app.get("/health")
 def health():
     return {"status": "ok", "configured": config.is_configured(),
