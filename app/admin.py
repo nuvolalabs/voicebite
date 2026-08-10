@@ -16,7 +16,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.templating import Jinja2Templates
 
-from app import config, store
+from app import config, db as store
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 security = HTTPBasic(auto_error=False)

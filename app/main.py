@@ -9,7 +9,7 @@ import hashlib
 from fastapi import FastAPI, Request, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from app import config, store, payments, restaurant
+from app import config, db as store, payments, restaurant
 from app.admin import router as admin_router
 from app.models import (
     GetMenuRequest, CreateOrderRequest, CreateReservationRequest, SendPaymentLinkRequest,
@@ -89,10 +89,51 @@ async def create_reservation(req: CreateReservationRequest, request: Request,
 async def send_payment_link(req: SendPaymentLinkRequest, request: Request,
                             x_vapi_secret: str | None = Header(None)):
     _verify_vapi(x_vapi_secret, await request.body())
-    link = payments.create_payment_link(req.amount, "", req.customer_name)
+    link = payments.create_payment_link(req.amount, req.order_id, req.customer_name)
     sent = payments.send_sms(req.phone, f"Hi {req.customer_name}, pay for your order here: {link}")
+
+    # Persist status so the admin/Stripe webhook can track payment.
+    order = store.get_order(req.order_id) if req.order_id else None
+    if order is not None:
+        from app.models import OrderStatus
+        order.status = OrderStatus.PAYMENT_SENT
+        order.payment_link = link
+        store.update_order(order)
+
     return {
         "payment_link": link,
         "sms_sent": sent,
         "message": f"Payment link sent to {req.phone}.",
     }
+
+
+@app.post("/stripe/webhook")
+async def stripe_webhook(request: Request):
+    """Mark an order PAID when its Stripe Payment Link is completed.
+
+    Wire this in the Stripe dashboard: Webhooks -> add endpoint
+    <PUBLIC_BASE_URL>/stripe/webhook, listen for `checkout.session.completed`
+    (Payment Links emit that event). Set STRIPE_WEBHOOK_SECRET in .env to verify.
+    """
+    import stripe as _stripe
+    payload = await request.body()
+    sig = request.headers.get("Stripe-Signature", "")
+
+    if config.STRIPE_WEBHOOK_SECRET:
+        try:
+            event = _stripe.Webhook.construct_event(
+                payload, sig, config.STRIPE_WEBHOOK_SECRET)
+        except Exception as e:  # noqa: BLE001
+            raise HTTPException(status_code=400, detail=f"Invalid signature: {e}")
+    else:
+        import json
+        event = json.loads(payload or b"{}")
+
+    if event.get("type") == "checkout.session.completed":
+        session = event["data"]["object"]
+        order_id = (session.get("metadata") or {}).get("order_id")
+        if order_id and store.set_order_paid(order_id, session.get("url")):
+            return {"received": True, "order_id": order_id, "status": "paid"}
+
+    return {"received": True}
+

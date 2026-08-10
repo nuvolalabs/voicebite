@@ -8,6 +8,7 @@ def create_payment_link(amount: float, order_id: str, customer_name: str) -> str
     """Create a Stripe Payment Link and return its hosted URL.
 
     amount is in the major currency unit (e.g. dollars), Stripe wants cents.
+    order_id is stored in metadata so the webhook can mark the order paid.
     """
     if not config.is_configured():
         # Demo mode: fake but realistic-looking link
@@ -27,7 +28,7 @@ def create_payment_link(amount: float, order_id: str, customer_name: str) -> str
     )
     link = stripe.PaymentLink.create(
         line_items=[{"price": price.id, "quantity": 1}],
-        metadata={"order_id": order_id},
+        metadata={"order_id": order_id or ""},
         after_completion={
             "type": "redirect",
             "redirect": {"url": config.STRIPE_SUCCESS_URL},
