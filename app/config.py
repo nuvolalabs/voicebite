@@ -3,7 +3,9 @@ from __future__ import annotations
 import os
 from dotenv import load_dotenv
 
-load_dotenv()
+# override=False so explicitly-set env vars (shell, test harness, Railway)
+# win over values in .env on disk.
+load_dotenv(override=False)
 
 
 def _get(key: str, default: str = "") -> str:

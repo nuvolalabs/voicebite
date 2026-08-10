@@ -4,6 +4,10 @@ import importlib
 import pytest
 from fastapi.testclient import TestClient
 
+import app.config as config
+
+ADMIN = (config.ADMIN_USER, config.ADMIN_PASS)
+
 
 @pytest.fixture
 def client():
@@ -76,11 +80,11 @@ def test_admin_auth_enforced(client):
 
 
 def test_admin_add_and_list_menu(client):
-    r = client.post("/admin/api/menu", auth=("admin", "secret"),
+    r = client.post("/admin/api/menu", auth=ADMIN,
                     json={"name": "Test Item", "category": "desserts", "price": 4.0})
     assert r.status_code == 200
     mid = r.json()["id"]
-    lst = client.get("/admin/api/menu", auth=("admin", "secret")).json()
+    lst = client.get("/admin/api/menu", auth=ADMIN).json()
     assert any(i["id"] == mid for i in lst)
 
 
